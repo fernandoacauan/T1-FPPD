@@ -117,7 +117,6 @@ func Dine( idx int, philosophers []*philosopher_t, fork []chan struct{}, wg *syn
 		}
 
 		Think( philosophers[idx] )
-		time.Sleep( time.Millisecond * 10 )
 	}
 }
 
