@@ -74,11 +74,13 @@ func Hungry( philosopher *philosopher_t ) {
 //		 ate ser acordado pelo Broadcast do ReleaseFork. A condicao de posse e
 //		 espera eh quebrada.
 //-----------------------------------------------------------------------------
-func PickFork( idx int, monitor *monitor_t ) {
+func PickFork( idx int, philosopher *philosopher_t, monitor *monitor_t ) {
 	left  := idx
 	right := ( idx + 1 ) % kSize
 
 	monitor.mu.Lock()
+
+	fmt.Printf( "Filosofo %d tentando pegar os garfos\n", philosopher.uid )
 
 	for {
 		select {
@@ -86,6 +88,7 @@ func PickFork( idx int, monitor *monitor_t ) {
 				select {
 					case <-monitor.forks[ right ]: {
 						monitor.mu.Unlock()
+						fmt.Printf( "Filosofo %d pegou os garfos\n", philosopher.uid )
 						return
 					}
 					default: {
@@ -127,11 +130,11 @@ func ReleaseFork( idx int, monitor *monitor_t ) {
 func Dine( idx int, philosophers []*philosopher_t, monitor *monitor_t, wg *sync.WaitGroup ) {
 	defer wg.Done()
 
-	for n := 0; n < 100; n++ {
+	for n := 0; n < 5; n++ {
 		Hungry( philosophers[idx] )
 
 		if philosophers[ idx ].state & kHungry != 0 {
-			PickFork( idx, monitor )
+			PickFork( idx, philosophers[idx], monitor )
 		}
 
 		Eat( philosophers[idx] )
