@@ -111,7 +111,7 @@ func ReleaseFork( idx int, fork []chan struct{} ) {
 func Dine( idx int, philosophers []*philosopher_t, fork []chan struct{}, wg *sync.WaitGroup ) {
 	defer wg.Done()
 
-	for n := 0; n < 100; n++ {
+	for n := 0; n < 5; n++ {
 		Hungry( philosophers[idx] )
 
 		if philosophers[ idx ].state & kHungry != 0 {
@@ -126,7 +126,7 @@ func Dine( idx int, philosophers []*philosopher_t, fork []chan struct{}, wg *syn
 		}
 
 		Think( philosophers[idx] )
-		time.Sleep( time.Millisecond * 10 )
+		time.Sleep( time.Millisecond * 10 ) // garantir fairness. Evita que algum filosofo que acabou de comer seja reescalonado hiper rapido e pegue de novo os gaarfos.
 	}
 }
 
@@ -144,8 +144,8 @@ func main() {
 
 	for idx := range kSize {
 		philosophers[ idx ] = &philosopher_t{ uid: uint8( idx ) }
-		forks[ idx ] = make( chan struct{}, 1 )
-		forks[ idx ] <- struct{}{}
+		forks[ idx ] 		= make( chan struct{}, 1 )
+		forks[ idx ] 		<- struct{}{}
 	}
 
 	for idx := range kSize {

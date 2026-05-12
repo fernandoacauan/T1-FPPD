@@ -103,7 +103,7 @@ func ReleaseFork( idx int, fork []chan struct{} ) {
 func Dine( idx int, philosophers []*philosopher_t, fork []chan struct{}, wg *sync.WaitGroup ) {
 	defer wg.Done()
 
-	for n := 0; n < 100; n++ {
+	for n := 0; n < 5; n++ {
 		Hungry( philosophers[idx] )
 
 		if philosophers[ idx ].state & kHungry != 0 {
