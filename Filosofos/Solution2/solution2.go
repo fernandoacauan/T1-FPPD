@@ -154,7 +154,7 @@ func main() {
 	var philosophers 	= 	make( []*philosopher_t, kSize )
 	var monitor			= 	&monitor_t{ forks: make( []chan struct{}, kSize ) }
 	var wg					sync.WaitGroup
-	monitor.cond 		= sync.NewCond( &monitor.mu )
+	monitor.cond 		= 	sync.NewCond( &monitor.mu )
 
 	for idx := range kSize {
 		philosophers[ idx ]		= &philosopher_t{ uid: uint8( idx ) }
