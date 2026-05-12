@@ -75,6 +75,9 @@ func PickFork( idx int, philosophers []*philosopher_t, fork []chan struct{} ) {
 	fmt.Printf( "Filosofo %d tentando pegar garfos\n", philosophers[idx].uid )
 
 	<-fork[ right ]
+
+	time.Sleep( time.Millisecond * 10 )
+
 	<-fork[ left ]
 
 	fmt.Printf( "Filosofo %d pegou os garfos\n", philosophers[idx].uid )
@@ -94,10 +97,8 @@ func ReleaseFork( idx int, fork []chan struct{} ) {
 
 //-----------------------------------------------------------------------------
 // Name: Dine()
-// Desc: Logica principal. Se o filosofo estiver com fome, ele pega o garfo.
-//		 Depois, ele come. Apos determinado tempo (time.sleep para verificar
-//		 data race), ele solta o garfo e volta a pensar por determinado tempo.
-// 		 Repete N vezes
+// Desc: Logica principal. A gente causa o deadlock pela comdicao de espera
+//		 circular (todos pegam o garfo direito e depois o esquerdo).
 //-----------------------------------------------------------------------------
 func Dine( idx int, philosophers []*philosopher_t, fork []chan struct{}, wg *sync.WaitGroup ) {
 	defer wg.Done()
