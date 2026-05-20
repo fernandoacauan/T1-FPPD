@@ -7,19 +7,12 @@
 // -----------------------------------------------------------------------------
 package main
 
-// =============================================================================
-// IMPORTS
-// =============================================================================
 import (
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 )
-
-// =============================================================================
-// TIPOS E CONSTANTES
-// =============================================================================
 
 type Carta int
 
@@ -40,10 +33,6 @@ func logf(formato string, args ...any) {
 	mu.Unlock()
 }
 
-// =============================================================================
-// BARALHO
-// =============================================================================
-
 func novoBaralho() []Carta {
 	var b []Carta
 	for v := 1; v <= 13; v++ {
@@ -57,10 +46,6 @@ func novoBaralho() []Carta {
 func embaralhar(b []Carta) {
 	rand.Shuffle(len(b), func(i, j int) { b[i], b[j] = b[j], b[i] })
 }
-
-// =============================================================================
-// HELPERS DE MÃO
-// =============================================================================
 
 func temTrinca(mao []Carta) bool {
 	return mao[0] == mao[1] && mao[1] == mao[2]
@@ -102,72 +87,51 @@ func maoStr(mao []Carta) string {
 	return s + "]"
 }
 
-// =============================================================================
-// CANAL DE BATIDA  (global, unbuffered — só 1 jogador consegue enviar)
-// =============================================================================
-
-var batidaCh = make(chan int)
+var batidaCh = make(chan int) // so 1 player consegue enviar
 
 // =============================================================================
 // JOGADOR  (cada chamada vira uma goroutine independente)
 // =============================================================================
 
-func jogador(
-	id int,             // índice 0..N-1
-	mao []Carta,        // cópia das cartas iniciais
-	recebe <-chan Carta, // recebe cartas do vizinho da DIREITA
-	envia chan<- Carta,  // envia cartas para o vizinho da ESQUERDA
-	reagir <-chan struct{}, // sinal de encerramento vindo do árbitro
-	wg *sync.WaitGroup,    // avisa o main quando terminar
-) {
-	// --- garante wg.Done mesmo se houver return antecipado -----------
+func jogador(id int, mao []Carta, recebe <-chan Carta, envia chan<- Carta, reagir <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// --- checagem inicial (raramente ocorre, mas possível) -----------
 	if temTrinca(mao) {
 		logf("Jogador %d BATEU de inicio com trinca de %d!\n", id+1, int(mao[0]))
 		select {
-		case batidaCh <- id: // avisa o árbitro
-		case <-reagir:       // outro já bateu antes
+			case batidaCh <- id: // avisa o árbitro
+			case <-reagir:       // outro já bateu antes
 		}
 		return
 	}
 
-	// =================================================================
-	// LOOP PRINCIPAL — repete até o jogo acabar
-	// =================================================================
 	for {
-
-		// --- PASSO 1: escolher e remover o descarte ------------------
 		descarte := escolherDescarte(mao)
 		mao = removerCarta(mao, descarte)
 		logf("Jogador %d descarta %2d\n", id+1, int(descarte))
 
-		// --- PASSO 2: enviar descarte para o vizinho da esquerda -----
-		// select evita travar se o jogo encerrar durante o envio
 		select {
-		case envia <- descarte:
-		case <-reagir:
-			return
+			case envia <- descarte:
+			case <-reagir:
+				return
 		}
 
-		// --- PASSO 3: receber carta do vizinho da direita -------------
-		// select evita travar se o jogo encerrar durante o recebimento
 		var nova Carta
 		select {
-		case nova = <-recebe:
-		case <-reagir:
-			return
+			case nova = <-recebe:
+			case <-reagir:
+				return
 		}
+
 		mao = append(mao, nova)
 		logf("Jogador %d recebeu %2d | mao: %v\n", id+1, int(nova), maoStr(mao))
 
-		// --- PASSO 4: verificar trinca -------------------------------
 		if temTrinca(mao) {
 			logf("Jogador %d BATEU com trinca de %d!\n", id+1, int(mao[0]))
 			select {
-			case batidaCh <- id: // tenta ser o primeiro a bater
-			case <-reagir:       // outro já bateu, encerra limpo
+				case batidaCh <- id: // tenta ser o primeiro a bater
+				case <-reagir:       // outro já bateu, encerra limpo
 			}
 			return
 		}
@@ -180,16 +144,12 @@ func jogador(
 // =============================================================================
 
 func arbitro(reagirChs []chan struct{}) {
-
-	// --- aguarda alguém bater ----------------------------------------
 	vencedor := <-batidaCh
 	logf("\nJogador %d bateu! Aguardando reacoes...\n", vencedor+1)
 
-	// --- canal buffered coleta quem respondeu (e em que ordem) ------
-	responderam := make(chan int, NumJogadores)
+	responderam := make(chan int, NumJogadores) // em ordem
 
-	// --- envia sinal de fim para TODOS em goroutines paralelas -------
-	// (paralelo evita que o árbitro trave esperando um jogador ocupado)
+	// envia sinal de fim para TODOS em goroutines paralelas
 	for i, ch := range reagirChs {
 		go func(jid int, c chan struct{}) {
 			c <- struct{}{}    // sinal de encerramento
@@ -197,28 +157,19 @@ func arbitro(reagirChs []chan struct{}) {
 		}(i, ch)
 	}
 
-	// --- coleta respostas e imprime a ordem --------------------------
 	var ultimo int
 	for k := 0; k < NumJogadores; k++ {
 		ultimo = <-responderam
 		logf("   Jogador %d reagiu (posicao %d)\n", ultimo+1, k+1)
 	}
 
-	// --- resultado ---------------------------------------------------
 	logf("\nJogador %d foi o ULTIMO a reagir — perdeu!\n", ultimo+1)
 	logf("Jogador %d venceu a rodada!\n\n", vencedor+1)
 }
 
-// =============================================================================
-// MAIN
-// =============================================================================
-
 func main() {
-
-	// --- semente aleatória -------------------------------------------
 	rand.Seed(time.Now().UnixNano()) //nolint:staticcheck
 
-	// --- baralho e distribuição de mãos ------------------------------
 	baralho := novoBaralho()
 	embaralhar(baralho)
 
@@ -228,31 +179,24 @@ func main() {
 		maos[i] = append([]Carta{}, baralho[ini:ini+CartasPorMao]...)
 	}
 
-	// --- mostra mãos iniciais ----------------------------------------
 	fmt.Println("=== JOGO DE TRINCA ===")
 	for i, m := range maos {
 		logf("Jogador %d comeca com: %v\n", i+1, maoStr(m))
 	}
 	fmt.Println("----------------------")
 
-	// =================================================================
-	// CHANNELS DE CARTAS  (buffer=1 quebra o deadlock circular do anel)
-	// =================================================================
-	// channels[i]: Jogador i  -->  Jogador (i+1)%N
+	// channel de cartas (o buffer=1 quebra o deadlock circular do anel)
 	channels := make([]chan Carta, NumJogadores)
 	for i := range channels {
 		channels[i] = make(chan Carta, 1)
 	}
 
-	// =================================================================
-	// CHANNELS DE REAGIR  (unbuffered — árbitro envia via goroutine)
-	// =================================================================
+	// channels de reagir (unbuffered - árbitro envia via goroutine)
 	reagirChs := make([]chan struct{}, NumJogadores)
 	for i := range reagirChs {
 		reagirChs[i] = make(chan struct{})
 	}
-
-	// --- WaitGroup: main espera todas as goroutines terminarem -------
+	
 	var wg sync.WaitGroup
 
 	// =================================================================
@@ -268,10 +212,7 @@ func main() {
 		go jogador(i, maos[i], recebe, envia, reagirChs[i], &wg)
 	}
 
-	// --- lança o árbitro ---------------------------------------------
 	go arbitro(reagirChs)
-
-	// --- aguarda fim de todas as goroutines --------------------------
 	wg.Wait()
 
 	fmt.Println("=== FIM DO JOGO ===")
